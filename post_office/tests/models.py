@@ -1,9 +1,11 @@
+import json
 from django.conf import settings as django_settings
 from django.core import mail
 from django.core.mail import EmailMultiAlternatives, get_connection
 from django.test import TestCase
 from django.test.utils import override_settings
 
+from ..utils import send_mail
 from ..models import Email, Log, STATUS, EmailTemplate
 from ..mail import from_template, send
 
@@ -133,24 +135,16 @@ class ModelTest(TestCase):
         self.assertEqual(email.message, 'Message: bar')
         self.assertEqual(email.html_message, 'HTML: bar')
 
-    def test_default_sender(self):
-        emails = send(['to@example.com'], subject='foo')
-        self.assertEqual(emails[0].from_email,
-                         django_settings.DEFAULT_FROM_EMAIL)
-
     def test_send_argument_checking(self):
         """
-        mail.send() should raise an Exception if:
-        - "template" is used with "subject", "message" or "html_message"
-        - recipients is not in tuple or list format
+        mail.send() should raise an Exception if "template" argument is used
+        with "subject", "message" or "html_message" arguments
         """
-        self.assertRaises(ValueError, send, ['to@example.com'], 'from@a.com',
+        self.assertRaises(ValueError, send, 'from@a.com', ['to@example.com'],
                           template='foo', subject='bar')
-        self.assertRaises(ValueError, send, ['to@example.com'], 'from@a.com',
+        self.assertRaises(ValueError, send, 'from@a.com', ['to@example.com'],
                           template='foo', message='bar')
-        self.assertRaises(ValueError, send, ['to@example.com'], 'from@a.com',
-                          template='foo', html_message='bar')
-        self.assertRaises(ValueError, send, 'to@example.com', 'from@a.com',
+        self.assertRaises(ValueError, send, 'from@a.com', ['to@example.com'],
                           template='foo', html_message='bar')
 
     def test_send_with_template(self):
@@ -160,14 +154,14 @@ class ModelTest(TestCase):
         Email.objects.all().delete()
         email_template = EmailTemplate.objects.create(name='foo', subject='bar',
                                                       content='baz')
-        emails = send(['to1@example.com', 'to2@example.com'], 'from@a.com',
+        emails = send('from@a.com', ['to1@example.com', 'to2@example.com'],
                       template=email_template)
         self.assertEqual(len(emails), 2)
         self.assertEqual(emails[0].to, 'to1@example.com')
         self.assertEqual(emails[1].to, 'to2@example.com')
 
     def test_send_without_template(self):
-        emails = send(['to1@example.com', 'to2@example.com'], 'from@a.com',
+        emails = send('from@a.com', ['to1@example.com', 'to2@example.com'],
                       subject='foo', message='bar', html_message='baz',
                       context={'name': 'Alice'})
         self.assertEqual(len(emails), 2)
@@ -178,7 +172,7 @@ class ModelTest(TestCase):
         self.assertEqual(emails[1].to, 'to2@example.com')
 
         # Same thing, but now with context
-        emails = send(['to1@example.com'], 'from@a.com',
+        emails = send('from@a.com', ['to1@example.com'],
                       subject='Hi {{ name }}', message='Message {{ name }}',
                       html_message='<b>{{ name }}</b>',
                       context={'name': 'Bob'})
@@ -187,3 +181,13 @@ class ModelTest(TestCase):
         self.assertEqual(emails[0].subject, 'Hi Bob')
         self.assertEqual(emails[0].message, 'Message Bob')
         self.assertEqual(emails[0].html_message, '<b>Bob</b>')
+
+    def test_send_mail_with_headers(self):
+        subject = "subject"
+        message = "message"
+        from_email = "from@mail.com"
+        recipient_list = ['to1@mail.com']
+        headers = {'Reply-To':'reply_to@mail.com'}
+        emails = send_mail(subject, message, from_email, recipient_list, headers=headers)
+        self.assertEqual(len(emails), 1)
+        self.assertEqual(emails[0].headers, headers)

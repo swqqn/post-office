@@ -23,7 +23,7 @@ settings.configure(
         'post_office': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
             'TIMEOUT': 36000,
-            'KEY_PREFIX': 'post-office',
+            'KEY_PREFIX': 'post-office',  
         }
     },
     INSTALLED_APPS = (
@@ -33,7 +33,6 @@ settings.configure(
         'django.contrib.sessions',
         'post_office',
     ),
-    DEFAULT_FROM_EMAIL='default@example.com',
     ROOT_URLCONF = 'post_office.test_urls',
 
 )
