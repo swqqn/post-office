@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.template import Context, Template
 
 from .models import Email, EmailTemplate, PRIORITY, STATUS
@@ -5,7 +6,7 @@ from .utils import get_email_template, send_mail
 
 
 def from_template(sender, recipient, template, context={},
-                  headers=None, priority=PRIORITY.medium):
+                  priority=PRIORITY.medium):
     """Returns an Email instance from provided template and context."""
     # template can be an EmailTemplate instance of name
     if isinstance(template, EmailTemplate):
@@ -22,22 +23,28 @@ def from_template(sender, recipient, template, context={},
         subject=template_subject.render(context),
         message=template_content.render(context),
         html_message=template_content_html.render(context),
-        headers=headers, priority=priority, status=status
+        priority=priority, status=status
     )
 
 
-def send(sender, recipients, template=None, context={}, headers=None, subject=None,
-         message=None, html_message=None, priority=PRIORITY.medium):
-    if template:
+def send(recipients, sender=None, template=None, context={}, subject='',
+         message='', html_message='', priority=PRIORITY.medium):
 
-        if subject is not None:
+    if not isinstance(recipients, (tuple, list)):
+        raise ValueError('Recipient emails must be in list/tuple format')
+
+    if sender is None:
+        sender = settings.DEFAULT_FROM_EMAIL
+
+    if template:
+        if subject:
             raise ValueError('You can\'t specify both "template" and "subject" arguments')
-        if message is not None:
+        if message:
             raise ValueError('You can\'t specify both "template" and "message" arguments')
-        if html_message is not None:
+        if html_message:
             raise ValueError('You can\'t specify both "template" and "html_message" arguments')
 
-        emails = [from_template(sender, recipient, template, context, headers, priority)
+        emails = [from_template(sender, recipient, template, context, priority)
                   for recipient in recipients]
         if priority == PRIORITY.now:
             for email in emails:
@@ -50,5 +57,5 @@ def send(sender, recipients, template=None, context={}, headers=None, subject=No
             html_message = Template(html_message).render(context)
         emails = send_mail(subject=subject, message=message, from_email=sender,
                            recipient_list=recipients, html_message=html_message,
-                           headers=headers, priority=PRIORITY.medium)
+                           priority=priority)
     return emails
