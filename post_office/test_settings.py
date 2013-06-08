@@ -33,5 +33,3 @@ INSTALLED_APPS = (
 SECRET_KEY = 'a'
 
 ROOT_URLCONF = 'post_office.test_urls'
-
-DEFAULT_FROM_EMAIL = 'webmaster@example.com'
