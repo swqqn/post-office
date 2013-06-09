@@ -5,10 +5,9 @@ from django.db import models
 from django.utils.encoding import smart_unicode
 from django.template import Context, Template
 
-from jsonfield import JSONField
 from post_office import cache
 from .settings import get_email_backend
-from .validators import validate_email_with_name
+from .validators import validate_email_with_name, validate_template_syntax
 
 
 PRIORITY = namedtuple('PRIORITY', 'low medium high now')._make(range(4))
@@ -18,7 +17,7 @@ STATUS = namedtuple('STATUS', 'sent failed queued')._make(range(3))
 # TODO: This will be deprecated, replaced by mail.from_template
 class EmailManager(models.Manager):
     def from_template(self, from_email, to_email, template,
-                      context={}, priority=PRIORITY.medium):
+            context={}, priority=PRIORITY.medium):
         status = None if priority == PRIORITY.now else STATUS.queued
         context = Context(context)
         template_content = Template(template.content)
@@ -58,9 +57,7 @@ class Email(models.Model):
                                                 null=True, db_index=True)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     last_updated = models.DateTimeField(db_index=True, auto_now=True)
-    scheduled_time = models.DateTimeField(blank=True, null=True, db_index=True)
     objects = EmailManager()
-    headers = JSONField(blank=True, null=True)
 
     class Meta:
         ordering = ('-created',)
@@ -75,8 +72,7 @@ class Email(models.Model):
         """
         subject = smart_unicode(self.subject)
         msg = EmailMultiAlternatives(subject, self.message, self.from_email,
-                                     [self.to], connection=connection,
-                                     headers=self.headers)
+                                     [self.to], connection=connection)
         if self.html_message:
             msg.attach_alternative(self.html_message, "text/html")
         return msg
@@ -137,9 +133,12 @@ class EmailTemplate(models.Model):
     Model to hold template information from db
     """
     name = models.CharField(max_length=255, help_text=("Example: 'emails/customers/id/welcome.html'"))
-    subject = models.CharField(max_length=255, blank=True)
-    content = models.TextField(blank=True)
-    html_content = models.TextField(blank=True)
+    subject = models.CharField(max_length=255, blank=True,
+                               validators=[validate_template_syntax])
+    content = models.TextField(blank=True,
+                               validators=[validate_template_syntax])
+    html_content = models.TextField(blank=True,
+                                    validators=[validate_template_syntax])
     created = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
 

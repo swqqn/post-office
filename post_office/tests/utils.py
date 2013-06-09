@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 from django.core import mail
 from django.core.exceptions import ValidationError
 
@@ -34,42 +32,25 @@ class UtilsTest(TestCase):
         Check that only queued messages are sent.
         """
         Email.objects.create(to='to@example.com', from_email='from@example.com',
-                             subject='Test', message='Message', status=STATUS.sent)
+            subject='Test', message='Message', status=STATUS.sent)
         Email.objects.create(to='to@example.com', from_email='from@example.com',
-                             subject='Test', message='Message', status=STATUS.failed)
+            subject='Test', message='Message', status=STATUS.failed)
         Email.objects.create(to='to@example.com', from_email='from@example.com',
-                             subject='Test', message='Message', status=None)
+            subject='Test', message='Message', status=None)
 
         # This should be the only email that gets sent
         Email.objects.create(to='to@example.com', from_email='from@example.com',
-                             subject='Queued', message='Message', status=STATUS.queued)
+            subject='Queued', message='Message', status=STATUS.queued)
         send_queued_mail()
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].subject, 'Queued')
-
-    def test_send_scheduled_mail(self):
-        """
-        Ensure that scheduled emails aren't sent out ahead of schedule
-        """
-        scheduled_time = datetime.now() + timedelta(days=1)
-        email = Email.objects.create(to='to@example.com', from_email='f@a.com',
-                                     subject='Queued', message='Message',
-                                     scheduled_time=scheduled_time, status=STATUS.queued)
-        send_queued_mail()
-        self.assertEqual(len(mail.outbox), 0)
-
-        # Email should only be sent if we move the scheduled_time back
-        email.scheduled_time = scheduled_time - timedelta(days=2)
-        email.save()
-        send_queued_mail()
-        self.assertEqual(len(mail.outbox), 1)
 
     def test_email_validator(self):
         # These should validate
         validate_email_with_name('email@example.com')
         validate_email_with_name('Alice Bob <email@example.com>')
         Email.objects.create(to='to@example.com', from_email='Alice <from@example.com>',
-                             subject='Test', message='Message', status=STATUS.sent)
+            subject='Test', message='Message', status=STATUS.sent)
 
         # Should also support international domains
         validate_email_with_name('Alice Bob <email@example.co.id>')
@@ -98,13 +79,11 @@ class UtilsTest(TestCase):
 
         # Create email template
         EmailTemplate.objects.create(name=template_name, content='Hi {{name}}',
-                                     html_content='<p>Hi {{name}}</p>',
-                                     subject='Happy Holidays!')
+            html_content='<p>Hi {{name}}</p>', subject='Happy Holidays!')
 
         # Send templated mail
-        send_templated_mail(template_name, 'from@example.com', to_addresses,
-                            context={'name': 'AwesomeBoy'}, priority=PRIORITY.medium)
-
+        send_templated_mail(template_name, 'from@example.com',
+            to_addresses, context={'name': 'AwesomeBoy'}, priority=PRIORITY.medium)
         send_queued_mail()
 
         # Check for the message integrity
