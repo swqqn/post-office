@@ -1,8 +1,20 @@
+from multiprocessing import Pool
+
 from django.conf import settings
+from django.core.mail import get_connection
+from django.db.models import Q
 from django.template import Context, Template
 
 from .models import Email, EmailTemplate, PRIORITY, STATUS
+from .settings import get_email_backend
 from .utils import get_email_template, send_mail
+
+try:
+    from django.utils import timezone
+    now = timezone.now
+except ImportError:
+    import datetime
+    now = datetime.datetime.now
 
 
 def from_template(sender, recipient, template, context={}, scheduled_time=None,
@@ -62,3 +74,63 @@ def send(recipients, sender=None, template=None, context={}, subject='',
                            scheduled_time=scheduled_time, headers=headers,
                            priority=priority)
     return emails
+
+
+def get_queued():
+    """
+    Returns a list of emails that should be sent:
+     - Status is queued
+     - Has scheduled_time lower than the current time or None
+    """
+    return Email.objects.filter(status=STATUS.queued) \
+        .filter(Q(scheduled_time__lte=now()) | Q(scheduled_time=None)) \
+        .order_by('-priority')
+
+
+def send_queued(processes=1):
+    """
+    Sends out all queued mails that has scheduled_time less than now or None
+    """
+    queued_emails = get_queued()
+
+    if queued_emails:
+        if processes == 1:
+            total_sent, total_failed = _send_bulk(queued_emails)
+        else:
+            # Group emails into X sublists
+            # taken from http://www.garyrobinson.net/2008/04/splitting-a-pyt.html
+            email_lists = [queued_emails[i::processes] for i in range(processes)]
+            pool = Pool(processes)
+            results = pool.map(_send_bulk, email_lists)
+            total_sent = sum([result[0] for result in results])
+            total_failed = sum([result[1] for result in results])            
+
+    print '%s emails attempted, %s sent, %s failed' % (
+        len(queued_emails),
+        total_sent,
+        total_failed
+    )
+    return (total_sent, total_failed)
+
+
+def _send_bulk(emails):
+    sent_count = 0
+    failed_count = 0
+
+    # Try to open a connection, if we can't just pass in None as connection
+    try:
+        connection = get_connection(get_email_backend())
+        connection.open()
+    except Exception:
+        connection = None
+
+    for email in emails:
+        status = email.dispatch(connection)
+        if status == STATUS.sent:
+            sent_count += 1
+        else:
+            failed_count += 1
+    if connection:
+        connection.close()
+    
+    return (sent_count, failed_count)
