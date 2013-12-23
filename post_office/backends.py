@@ -1,8 +1,6 @@
-from django.core.files.base import ContentFile
 from django.core.mail.backends.base import BaseEmailBackend
 
-from .mail import create
-from .utils import create_attachments
+from .models import Email, PRIORITY, STATUS
 
 
 class EmailBackend(BaseEmailBackend):
@@ -38,15 +36,8 @@ class EmailBackend(BaseEmailBackend):
             else:
                 html_message = ''
 
-            attachment_files = dict([(name, ContentFile(content))
-                                    for name, content, _ in email.attachments])
-
-            emails = [create(sender=from_email, recipient=recipient, subject=subject,
-                             message=message, html_message=html_message, headers=headers)
-                      for recipient in email.to]
-
-            if attachment_files:
-                attachments = create_attachments(attachment_files)
-
-                for email in emails:
-                    email.attachments.add(*attachments)
+            for recipient in email.to:
+                Email.objects.create(from_email=from_email, to=recipient,
+                    subject=subject, html_message=html_message,
+                    message=message, status=STATUS.queued,
+                    headers=headers, priority=PRIORITY.medium)
