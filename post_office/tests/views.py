@@ -16,7 +16,7 @@ class AdminViewTest(TestCase):
     def setUp(self):
         user = User.objects.create_superuser(admin_username, admin_email, admin_pass)
         self.client = Client()
-        self.client.login(username=user.username, password=admin_pass)
+        self.client.login(username=user.username, password=user.password)
 
     # Small test to make sure the admin interface is loaded
     def test_admin_interface(self):
@@ -25,7 +25,7 @@ class AdminViewTest(TestCase):
 
     def test_admin_change_page(self):
         """Ensure that changing an email object in admin works."""
-        mail.send(recipients=['test@example.com'], headers={'foo': 'bar'})
+        mail.send(recipients=['test@example.com'])
         email = Email.objects.latest('id')
         response = self.client.get(reverse('admin:post_office_email_change', args=[email.id]))
         self.assertEqual(response.status_code, 200)
