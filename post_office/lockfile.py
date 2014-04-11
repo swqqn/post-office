@@ -33,39 +33,21 @@ class FileLock(object):
         self.lockfname = '%s.lock' % self.fname
         self.timeout = timeout
         self.force = force
-        self._pid = str(os.getpid())
-        # Store pid in a file in the same directory as desired lockname
-        self.pid_filename = os.path.join(
-            os.path.dirname(self.lockfname),
-            self._pid,
-        ) + '.lock'
-
-    def get_lock_pid(self):
-        try:
-            return int(open(self.lockfname).read())
-        except IOError:
-            # If we can't read symbolic link, there are two possibilities:
-            # 1. The symbolic link is dead (point to non existing file)
-            # 2. Symbolic link is not there
-            try:
-                os.remove(self.lockfname)
-            except OSError:
-                # If symbolic link is not there, we don't care
-                pass
+        self.fh = None
 
     def valid_lock(self):
         """
         See if the lock exists and is left over from an old process.
         """
 
-        lock_pid = self.get_lock_pid()
-
-        # If we're unable to get lock_pid
-        if lock_pid is None:
+        if not os.path.exists(self.lockfname):
             return False
 
+        my_pid = os.getpid()
+        lock_pid = int(open(self.lockfname).read())
+
         # this is our process
-        if self._pid == lock_pid:
+        if my_pid == lock_pid:
             return True
 
         # it is/was another process
@@ -73,8 +55,7 @@ class FileLock(object):
         try:
             os.kill(lock_pid, 0)
         except OSError:
-            os.unlink(self.lockfname)
-            os.remove(self.pid_filename)
+            os.remove(self.lockfname)
             return False
 
         # it is running
@@ -115,30 +96,16 @@ class FileLock(object):
                 raise FileLocked()
 
     def acquire(self):
-        """Create a pid filename and create a symlink (the actual lock file)
-        across platforms that points to it. Symlink is used because it's an
-        atomic operation across platforms.
-        """
-
-        pid_file = os.open(self.pid_filename, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+        self.fh = os.open(self.lockfname, os.O_CREAT | os.O_EXCL | os.O_RDWR)
         try:
-            os.write(pid_file, str(os.getpid()))
+            os.write(self.fh, str(os.getpid()))
         except TypeError:
-            os.write(pid_file, bytes(os.getpid()))
-        os.close(pid_file)
-        os.symlink(self.pid_filename, self.lockfname)
-        #time.sleep(100)
+            os.write(self.fh, bytes(os.getpid()))
 
     def release(self):
-        """Try to delete the lock files. Doesn't matter if we fail"""
-        try:
-            os.unlink(self.lockfname)
-        except OSError:
-            pass
-        try:
-            os.remove(self.pid_filename)
-        except OSError:
-            pass
+        if self.fh:
+            os.close(self.fh)
+        os.remove(self.lockfname)
 
     def __enter__(self):
         if not self.is_locked():
