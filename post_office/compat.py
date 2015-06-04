@@ -1,8 +1,4 @@
-try:
-    import importlib
-except ImportError:
-    from django.utils import importlib
-
+from django.utils import importlib
 import sys
 
 
