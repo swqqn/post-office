@@ -8,9 +8,8 @@ from django.core.mail import get_connection
 from django.db import connection as db_connection
 from django.db.models import Q
 from django.template import Context, Template
-from django.utils.translation import get_language
 
-from .models import Email, EmailTemplate, TranslatedEmailTemplate, PRIORITY, STATUS
+from .models import Email, EmailTemplate, PRIORITY, STATUS
 from .settings import get_batch_size, get_email_backend, get_log_level, get_sending_order
 from .utils import (get_email_template, parse_emails, parse_priority,
                     split_emails, create_attachments)
@@ -30,7 +29,7 @@ logger = setup_loghandlers("INFO")
 def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
            html_message='', context=None, scheduled_time=None, headers=None,
            template=None, priority=None, render_on_delivery=False,
-           language=None, commit=True):
+           commit=True):
     """
     Creates an email from supplied keyword arguments. If template is
     specified, email subject and content will be rendered during delivery.
@@ -46,8 +45,6 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
         bcc = []
     if context is None:
         context = ''
-    if language is None:
-        language = get_language()
 
     # If email is to be rendered during delivery, save all necessary
     # information
@@ -59,22 +56,15 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
             bcc=bcc,
             scheduled_time=scheduled_time,
             headers=headers, priority=priority, status=status,
-            context=context, template=template, language=language
+            context=context, template=template
         )
 
     else:
 
         if template:
-            # override template entries with translated instances, if they exists for the current language
-            try:
-                translated_template = template.translated_template.get(language=language)
-                subject = translated_template.subject
-                message = translated_template.content
-                html_message = translated_template.html_content
-            except TranslatedEmailTemplate.DoesNotExist:
-                subject = template.subject
-                message = template.content
-                html_message = template.html_content
+            subject = template.subject
+            message = template.content
+            html_message = template.html_content
 
         _context = Context(context or {})
         subject = Template(subject).render(_context)
@@ -102,7 +92,7 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
 def send(recipients=None, sender=None, template=None, context=None, subject='',
          message='', html_message='', scheduled_time=None, headers=None,
          priority=None, attachments=None, render_on_delivery=False,
-         log_level=None, commit=True, cc=None, bcc=None, language=None):
+         log_level=None, commit=True, cc=None, bcc=None):
 
     try:
         recipients = parse_emails(recipients)
@@ -149,7 +139,7 @@ def send(recipients=None, sender=None, template=None, context=None, subject='',
 
     email = create(sender, recipients, cc, bcc, subject, message, html_message,
                    context, scheduled_time, headers, template, priority,
-                   render_on_delivery, language, commit=commit)
+                   render_on_delivery, commit=commit)
 
     if attachments:
         attachments = create_attachments(attachments)
@@ -181,7 +171,6 @@ def get_queued():
     """
     return Email.objects.filter(status=STATUS.queued) \
         .select_related('template') \
-        .prefetch_related('template__translated_template') \
         .filter(Q(scheduled_time__lte=now()) | Q(scheduled_time=None)) \
         .order_by(*get_sending_order()).prefetch_related('attachments')[:get_batch_size()]
 
