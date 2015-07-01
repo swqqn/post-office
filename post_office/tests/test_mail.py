@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
 from datetime import date, datetime
 
 from django.core import mail
@@ -6,9 +8,10 @@ from django.conf import settings
 
 from django.test import TestCase
 from django.test.utils import override_settings
+from django.utils import translation
 
 from ..settings import get_batch_size, get_log_level
-from ..models import Email, EmailTemplate, Attachment, PRIORITY, STATUS
+from ..models import Email, EmailTemplate, TranslatedEmailTemplate, Attachment, PRIORITY, STATUS
 from ..mail import (create, get_queued,
                     send, send_many, send_queued, _send_bulk)
 
@@ -72,16 +75,15 @@ class MailTest(TestCase):
         total_sent, total_failed = send_queued(processes=2)
         self.assertEqual(total_sent, 3)
 
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_send_bulk(self):
         """
         Ensure _send_bulk() properly sends out emails.
         """
         email = Email.objects.create(
             to=['to@example.com'], from_email='bob@example.com',
-            subject='send bulk', message='Message', status=STATUS.queued,
-            backend_alias='locmem')
-        sent_count, _ = _send_bulk([email])
-        self.assertEqual(sent_count, 1)
+            subject='send bulk', message='Message', status=STATUS.queued)
+        _send_bulk([email])
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].subject, 'send bulk')
 
@@ -94,11 +96,10 @@ class MailTest(TestCase):
         self.assertEqual(connection_counter, 0)
         email = Email.objects.create(to=['to@example.com'],
                                      from_email='bob@example.com', subject='',
-                                     message='', status=STATUS.queued, backend_alias='connection_tester')
+                                     message='', status=STATUS.queued)
         email_2 = Email.objects.create(to=['to@example.com'],
                                        from_email='bob@example.com', subject='',
-                                       message='', status=STATUS.queued,
-                                       backend_alias='connection_tester')
+                                       message='', status=STATUS.queued)
         _send_bulk([email, email_2])
         self.assertEqual(connection_counter, 1)
 
@@ -139,23 +140,19 @@ class MailTest(TestCase):
         """
         Ensure BATCH_SIZE setting is read correctly.
         """
-        previous_settings = settings.POST_OFFICE
         self.assertEqual(get_batch_size(), 5000)
         setattr(settings, 'POST_OFFICE', {'BATCH_SIZE': 100})
         self.assertEqual(get_batch_size(), 100)
-        settings.POST_OFFICE = previous_settings
 
     def test_get_log_level(self):
         """
         Ensure LOG_LEVEL setting is read correctly.
         """
-        previous_settings = settings.POST_OFFICE
         self.assertEqual(get_log_level(), 2)
         setattr(settings, 'POST_OFFICE', {'LOG_LEVEL': 1})
         self.assertEqual(get_log_level(), 1)
         # Restore ``LOG_LEVEL``
         setattr(settings, 'POST_OFFICE', {'LOG_LEVEL': 2})
-        settings.POST_OFFICE = previous_settings
 
     def test_create(self):
         """
@@ -309,6 +306,7 @@ class MailTest(TestCase):
         self.assertEqual(email.context, None)
         self.assertEqual(email.template, None)
 
+    @override_settings(LANGUAGES=(('en', 'English'), ('ru', 'Russian')))
     def test_send_with_template(self):
         """If render_on_delivery is False, subject and content
         will be rendered, context won't be saved."""
@@ -318,6 +316,15 @@ class MailTest(TestCase):
             content='Content {{ name }}',
             html_content='HTML {{ name }}'
         )
+        translated_template = TranslatedEmailTemplate(
+            default_template=template,
+            language='ru',
+            subject='предмет {{ name }}',
+            content='содержание {{ name }}',
+            html_content='HTML {{ name }}'
+        )
+        translated_template.save()
+
         context = {'name': 'test'}
         email = send(recipients=['to@example.com'], sender='from@example.com',
                      template=template, context=context)
@@ -327,3 +334,25 @@ class MailTest(TestCase):
         self.assertEqual(email.html_message, 'HTML test')
         self.assertEqual(email.context, None)
         self.assertEqual(email.template, None)
+
+        # check, if we use the Russian version
+        with translation.override('ru'):
+            email = send(recipients=['to@example.com'], sender='from@example.com',
+                     template=template, context=context)
+            email = Email.objects.get(id=email.id)
+            self.assertEqual(email.subject, 'предмет test')
+            self.assertEqual(email.message, 'содержание test')
+            self.assertEqual(email.html_message, 'HTML test')
+            self.assertEqual(email.context, None)
+            self.assertEqual(email.template, None)
+
+        # check, if Italian falls back to English
+        with translation.override('it'):
+            email = send(recipients=['to@example.com'], sender='from@example.com',
+                     template=template, context=context)
+            email = Email.objects.get(id=email.id)
+            self.assertEqual(email.subject, 'Subject test')
+            self.assertEqual(email.message, 'Content test')
+            self.assertEqual(email.html_message, 'HTML test')
+            self.assertEqual(email.context, None)
+            self.assertEqual(email.template, None)

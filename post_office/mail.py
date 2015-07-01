@@ -4,13 +4,14 @@ from multiprocessing import Pool
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.mail import get_connection
 from django.db import connection as db_connection
 from django.db.models import Q
 from django.template import Context, Template
+from django.utils.translation import get_language
 
-from .connections import connections
-from .models import Email, EmailTemplate, PRIORITY, STATUS
-from .settings import get_batch_size, get_log_level, get_sending_order
+from .models import Email, EmailTemplate, TranslatedEmailTemplate, PRIORITY, STATUS
+from .settings import get_batch_size, get_email_backend, get_log_level, get_sending_order
 from .utils import (get_email_template, parse_emails, parse_priority,
                     split_emails, create_attachments)
 from .logutils import setup_loghandlers
@@ -29,7 +30,7 @@ logger = setup_loghandlers("INFO")
 def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
            html_message='', context=None, scheduled_time=None, headers=None,
            template=None, priority=None, render_on_delivery=False,
-           commit=True):
+           language=None, commit=True):
     """
     Creates an email from supplied keyword arguments. If template is
     specified, email subject and content will be rendered during delivery.
@@ -45,6 +46,8 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
         bcc = []
     if context is None:
         context = ''
+    if language is None:
+        language = get_language()
 
     # If email is to be rendered during delivery, save all necessary
     # information
@@ -56,15 +59,21 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
             bcc=bcc,
             scheduled_time=scheduled_time,
             headers=headers, priority=priority, status=status,
-            context=context, template=template
+            context=context, template=template, language=language
         )
 
     else:
 
         if template:
-            subject = template.subject
-            message = template.content
-            html_message = template.html_content
+            # override template entries with translated instances, if they exists for the current language
+            try:
+                template = template.translated_template.get(language=language)
+            except TranslatedEmailTemplate.DoesNotExist:
+                pass
+            finally:
+                subject = template.subject
+                message = template.content
+                html_message = template.html_content
 
         _context = Context(context or {})
         subject = Template(subject).render(_context)
@@ -92,7 +101,7 @@ def create(sender, recipients=None, cc=None, bcc=None, subject='', message='',
 def send(recipients=None, sender=None, template=None, context=None, subject='',
          message='', html_message='', scheduled_time=None, headers=None,
          priority=None, attachments=None, render_on_delivery=False,
-         log_level=None, commit=True, cc=None, bcc=None):
+         log_level=None, commit=True, cc=None, bcc=None, language=None):
 
     try:
         recipients = parse_emails(recipients)
@@ -139,7 +148,7 @@ def send(recipients=None, sender=None, template=None, context=None, subject='',
 
     email = create(sender, recipients, cc, bcc, subject, message, html_message,
                    context, scheduled_time, headers, template, priority,
-                   render_on_delivery, commit=commit)
+                   render_on_delivery, language, commit=commit)
 
     if attachments:
         attachments = create_attachments(attachments)
@@ -171,6 +180,7 @@ def get_queued():
     """
     return Email.objects.filter(status=STATUS.queued) \
         .select_related('template') \
+        .prefetch_related('template__translated_template') \
         .filter(Q(scheduled_time__lte=now()) | Q(scheduled_time=None)) \
         .order_by(*get_sending_order()).prefetch_related('attachments')[:get_batch_size()]
 
@@ -228,9 +238,16 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     email_count = len(emails)
     logger.info('Process started, sending %s emails' % email_count)
 
+    # Try to open a connection, if we can't just pass in None as connection
+    try:
+        connection = get_connection(get_email_backend())
+        connection.open()
+    except Exception:
+        connection = None
+
     try:
         for email in emails:
-            status = email.dispatch(log_level=log_level)
+            status = email.dispatch(connection, log_level)
             if status == STATUS.sent:
                 sent_count += 1
                 logger.debug('Successfully sent email #%d' % email.id)
@@ -240,9 +257,10 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     except Exception as e:
         logger.error(e, exc_info=sys.exc_info(), extra={'status_code': 500})
 
-    connections.close()
+    if connection:
+        connection.close()
 
-    logger.info('Process finished, %s attempted, %s sent, %s failed' %
-                (email_count, sent_count, failed_count))
+    logger.info('Process finished, %s emails attempted, %s sent, %s failed' %
+               (email_count, sent_count, failed_count))
 
     return (sent_count, failed_count)
