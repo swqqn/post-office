@@ -2,7 +2,6 @@ import datetime
 
 from django.core.management import call_command
 from django.test import TestCase
-from django.test.utils import override_settings
 
 from ..models import Email, STATUS
 
@@ -64,22 +63,24 @@ class CommandTest(TestCase):
         call_command('send_queued_mail', log_level=2)
         self.assertEqual(email.logs.count(), 1)
 
-    @override_settings(EMAIL_BACKEND='post_office.tests.backends.ErrorRaisingBackend')
     def test_failed_deliveries_logging(self):
         """
         Failed deliveries are logged when log_level is 1 and 2.
         """
         email = Email.objects.create(from_email='from@example.com',
-                                     to=['to@example.com'], status=STATUS.queued)
+                                     to=['to@example.com'], status=STATUS.queued,
+                                     backend_alias='error')
         call_command('send_queued_mail', log_level=0)
         self.assertEqual(email.logs.count(), 0)
 
         email = Email.objects.create(from_email='from@example.com',
-                                     to=['to@example.com'], status=STATUS.queued)
+                                     to=['to@example.com'], status=STATUS.queued,
+                                     backend_alias='error')
         call_command('send_queued_mail', log_level=1)
         self.assertEqual(email.logs.count(), 1)
 
         email = Email.objects.create(from_email='from@example.com',
-                                     to=['to@example.com'], status=STATUS.queued)
+                                     to=['to@example.com'], status=STATUS.queued,
+                                     backend_alias='error')
         call_command('send_queued_mail', log_level=2)
         self.assertEqual(email.logs.count(), 1)

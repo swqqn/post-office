@@ -6,7 +6,7 @@ from uuid import uuid4
 from collections import namedtuple
 
 from django.conf import settings
-from django.core.mail import EmailMessage, EmailMultiAlternatives, get_connection
+from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from post_office.fields import CommaSeparatedEmailField
@@ -21,7 +21,8 @@ from django.template import Context, Template
 from jsonfield import JSONField
 from post_office import cache
 from .compat import text_type
-from .settings import get_email_backend, context_field_class, get_log_level
+from .connections import connections
+from .settings import context_field_class, get_log_level
 from .validators import validate_email_with_name, validate_template_syntax
 
 
@@ -62,6 +63,7 @@ class Email(models.Model):
     headers = JSONField(blank=True, null=True)
     template = models.ForeignKey('post_office.EmailTemplate', blank=True, null=True)
     context = context_field_class(blank=True, null=True)
+    backend_alias = models.CharField(blank=True, default='', max_length=64)
 
     class Meta:
         app_label = 'post_office'
@@ -71,8 +73,8 @@ class Email(models.Model):
 
     def email_message(self, connection=None):
         """
-        Returns a django ``EmailMessage`` or ``EmailMultiAlternatives`` object
-        from a ``Message`` instance, depending on whether html_message is empty.
+        Returns a django ``EmailMessage`` or ``EmailMultiAlternatives`` object,
+        depending on whether html_message is empty.
         """
         subject = smart_text(self.subject)
 
@@ -104,30 +106,22 @@ class Email(models.Model):
 
         return msg
 
-    def dispatch(self, connection=None, log_level=None):
+    def dispatch(self, log_level=None):
         """
         Actually send out the email and log the result
         """
-        connection_opened = False
 
         if log_level is None:
             log_level = get_log_level()
 
         try:
-            if connection is None:
-                connection = get_connection(get_email_backend())
-                connection.open()
-                connection_opened = True
-
+            connection = connections[self.backend_alias or 'default']
             self.email_message(connection=connection).send()
             status = STATUS.sent
             message = ''
             exception_type = ''
 
-            if connection_opened:
-                connection.close()
-
-        except Exception:
+        except:
             status = STATUS.failed
             exception, message, _ = sys.exc_info()
             exception_type = exception.__name__
