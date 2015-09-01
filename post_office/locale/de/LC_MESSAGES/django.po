@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2015-07-06 07:47+0200\n"
+"POT-Creation-Date: 2015-05-29 11:59+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,113 +18,90 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: admin.py:97
-#, fuzzy
-msgid "Default Content"
-msgstr "Inhalt"
-
-#: admin.py:111
-msgid "Description"
-msgstr "Beschreibung"
-
-#: admin.py:117
-msgid "Languages"
-msgstr "Sprachen"
-
 #: fields.py:11
 msgid "Comma-separated emails"
-msgstr "Durch Kommas getrennte Emails"
+msgstr "Komma separierte Emails"
 
 #: fields.py:20
 msgid "Only comma separated emails are allowed."
-msgstr "Nur durch Kommas getrennte Emails sind erlaubt"
+msgstr "Nur Komma separierte Emails sind erlaubt"
 
-#: models.py:38
+#: models.py:37
 msgid "low"
 msgstr "niedrig"
 
-#: models.py:38
+#: models.py:37
 msgid "medium"
 msgstr "mittel"
 
-#: models.py:39
+#: models.py:38
 msgid "high"
 msgstr "hoch"
 
-#: models.py:39
+#: models.py:38
 msgid "now"
 msgstr "sofort"
 
-#: models.py:40 models.py:169
+#: models.py:39 models.py:159
 msgid "sent"
 msgstr "gesendet"
 
-#: models.py:40 models.py:169
+#: models.py:39 models.py:159
 msgid "failed"
 msgstr "fehlgeschlagen"
 
-#: models.py:41
+#: models.py:40
 msgid "queued"
 msgstr "in der Warteschleife"
 
-#: models.py:44
+#: models.py:43
 msgid "Email From"
-msgstr "Email Von"
+msgstr "Email von"
+
+#: models.py:44
+msgid "Email To"
+msgstr "Email an"
 
 #: models.py:45
-msgid "Email To"
-msgstr "Email An"
-
-#: models.py:46
 msgid "Cc"
 msgstr "Kopie"
 
-#: models.py:47
+#: models.py:46
 msgid "Bcc"
 msgstr "Blinde Kopie"
 
-#: models.py:48 models.py:194
+#: models.py:47 models.py:182 models.py:209
 msgid "Subject"
 msgstr "Betreff"
 
-#: models.py:49
+#: models.py:48
 msgid "Message"
 msgstr "Nachricht"
 
-#: models.py:50
+#: models.py:49
 msgid "HTML Message"
 msgstr "HTML Nachricht"
 
-#: models.py:188
+#: models.py:178
 msgid "e.g: 'welcome_email'"
 msgstr "z.B. 'welcome_email'"
 
-#: models.py:190
+#: models.py:180 models.py:207
 msgid "Description of this template."
 msgstr "Beschreibung dieser Vorlage"
 
-#: models.py:196
+#: models.py:184 models.py:211
 msgid "Content"
 msgstr "Inhalt"
 
-#: models.py:198
+#: models.py:186
 msgid "HTML content"
 msgstr "HTML Inhalt"
 
-#: models.py:200
+#: models.py:204
 msgid "Render template in alternative language"
-msgstr "Vorlage in alternativer Sprache rendern"
+msgstr "In alternativer Sprache rendern"
 
-#: models.py:208
-#, fuzzy
-msgid "Email Template"
-msgstr "Email Vorlage"
-
-#: models.py:209
-#, fuzzy
-msgid "Email Templates"
-msgstr "Email Vorlagen"
-
-#: models.py:236
+#: models.py:240
 msgid "The original filename"
-msgstr "Ursprünglicher Dateiname"
+msgstr "Original Dateiname"
