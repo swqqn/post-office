@@ -6,12 +6,13 @@ from django.utils.translation import ugettext_lazy as _
 from .validators import validate_comma_separated_emails
 
 
-class CommaSeparatedField(with_metaclass(SubfieldBase, TextField)):
+class CommaSeparatedEmailField(with_metaclass(SubfieldBase, TextField)):
+    default_validators = [validate_comma_separated_emails]
     description = _("Comma-separated emails")
 
     def __init__(self, *args, **kwargs):
         kwargs['blank'] = True
-        super(CommaSeparatedField, self).__init__(*args, **kwargs)
+        super(CommaSeparatedEmailField, self).__init__(*args, **kwargs)
 
     def formfield(self, **kwargs):
         defaults = {
@@ -20,7 +21,7 @@ class CommaSeparatedField(with_metaclass(SubfieldBase, TextField)):
             }
         }
         defaults.update(kwargs)
-        return super(CommaSeparatedField, self).formfield(**defaults)
+        return super(CommaSeparatedEmailField, self).formfield(**defaults)
 
     def get_prep_value(self, value):
         """
@@ -53,21 +54,3 @@ class CommaSeparatedField(with_metaclass(SubfieldBase, TextField)):
         field_class = 'django.db.models.fields.TextField'
         args, kwargs = introspector(self)
         return (field_class, args, kwargs)
-
-
-class CommaSeparatedEmailField(CommaSeparatedField):
-    default_validators = [validate_comma_separated_emails]
-    description = _("Comma-separated emails")
-
-    def __init__(self, *args, **kwargs):
-        kwargs['blank'] = True
-        super(CommaSeparatedEmailField, self).__init__(*args, **kwargs)
-
-    def formfield(self, **kwargs):
-        defaults = {
-            'error_messages': {
-                'invalid': _('Only comma separated emails are allowed.'),
-            }
-        }
-        defaults.update(kwargs)
-        return super(CommaSeparatedEmailField, self).formfield(**defaults)
