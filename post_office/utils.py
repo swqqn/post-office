@@ -11,7 +11,7 @@ except ImportError:
 from post_office import cache
 from .compat import string_types
 from .models import Email, PRIORITY, STATUS, EmailTemplate, Attachment
-from .settings import get_default_priority
+from .settings import get_available_backends, get_default_priority
 
 
 try:
@@ -62,6 +62,19 @@ def get_email_template(name, language=''):
                                                        language=language)
             cache.set(composite_name, email_template)
             return email_template
+
+
+def parse_email_template(template, language=''):
+    """Returns the right email template, supports multi-lingual template"""
+    if isinstance(template, EmailTemplate):
+        template = template
+        # If language is specified, ensure template uses the right language
+        if language:
+            if template.language != language:
+                template = get_email_template(template.name, language)
+    else:
+        template = get_email_template(template, language)
+    return template
 
 
 def split_emails(emails, split_count=1):
@@ -135,3 +148,8 @@ def parse_emails(emails):
             raise ValidationError('%s is not a valid email address' % email)
 
     return emails
+
+
+def parse_backend(name):
+    if name and name not in get_available_backends().keys():
+        raise ValueError('%s is not a valid backend alias' % name)
