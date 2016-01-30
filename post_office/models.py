@@ -9,7 +9,6 @@ from django.conf import settings
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
-from django.utils.encoding import python_2_unicode_compatible
 from post_office.fields import CommaSeparatedEmailField
 
 try:
@@ -31,7 +30,6 @@ PRIORITY = namedtuple('PRIORITY', 'low medium high now')._make(range(4))
 STATUS = namedtuple('STATUS', 'sent failed queued')._make(range(3))
 
 
-@python_2_unicode_compatible
 class Email(models.Model):
     """
     A model to hold email information.
@@ -70,7 +68,7 @@ class Email(models.Model):
     class Meta:
         app_label = 'post_office'
 
-    def __str__(self):
+    def __unicode__(self):
         return u'%s' % self.to
 
     def email_message(self, connection=None):
@@ -151,7 +149,6 @@ class Email(models.Model):
         return super(Email, self).save(*args, **kwargs)
 
 
-@python_2_unicode_compatible
 class Log(models.Model):
     """
     A model to record sending email sending activities.
@@ -168,11 +165,10 @@ class Log(models.Model):
     class Meta:
         app_label = 'post_office'
 
-    def __str__(self):
+    def __unicode__(self):
         return text_type(self.date)
 
 
-@python_2_unicode_compatible
 class EmailTemplate(models.Model):
     """
     Model to hold template information from db
@@ -200,8 +196,8 @@ class EmailTemplate(models.Model):
         verbose_name = _("Email Template")
         verbose_name_plural = _("Email Templates")
 
-    def __str__(self):
-        return u'%s %s' % (self.name, self.language)
+    def __unicode__(self):
+        return self.name
 
     def save(self, *args, **kwargs):
         # If template is a translation, use default template's name
