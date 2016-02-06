@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-import sys
 from uuid import uuid4
 
 from collections import namedtuple
@@ -47,7 +46,7 @@ class Email(models.Model):
     to = CommaSeparatedEmailField(_("Email To"))
     cc = CommaSeparatedEmailField(_("Cc"))
     bcc = CommaSeparatedEmailField(("Bcc"))
-    subject = models.CharField(_("Subject"), max_length=989, blank=True)
+    subject = models.CharField(_("Subject"), max_length=255, blank=True)
     message = models.TextField(_("Message"), blank=True)
     html_message = models.TextField(_("HTML Message"), blank=True)
     """
@@ -123,10 +122,10 @@ class Email(models.Model):
             status = STATUS.sent
             message = ''
             exception_type = ''
-        except:
+        except Exception as e:
             status = STATUS.failed
-            exception, message, _ = sys.exc_info()
-            exception_type = exception.__name__
+            message = str(e)
+            exception_type = type(e).__name__
 
         if connection and disconnect_after_delivery:
             connection.close()
