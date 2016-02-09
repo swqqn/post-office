@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
+import sys
 from uuid import uuid4
 
 from collections import namedtuple
@@ -122,10 +123,10 @@ class Email(models.Model):
             status = STATUS.sent
             message = ''
             exception_type = ''
-        except Exception as e:
+        except:
             status = STATUS.failed
-            message = str(e)
-            exception_type = type(e).__name__
+            exception, message, _ = sys.exc_info()
+            exception_type = exception.__name__
 
         if connection and disconnect_after_delivery:
             connection.close()
