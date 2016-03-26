@@ -3,7 +3,16 @@ import warnings
 from django.conf import settings
 from django.core.cache.backends.base import InvalidCacheBackendError
 
-from .compat import import_attribute, get_cache
+from .compat import import_attribute
+
+
+try:
+    from django.core.cache import caches
+
+    def get_cache(name):
+        return caches[name]
+except ImportError:
+    from django.core.cache import get_cache
 
 
 def get_backend(alias='default'):
