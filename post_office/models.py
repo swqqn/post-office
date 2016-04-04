@@ -11,16 +11,11 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 from post_office.fields import CommaSeparatedEmailField
 
-try:
-    from django.utils.encoding import smart_text  # For Django >= 1.5
-except ImportError:
-    from django.utils.encoding import smart_unicode as smart_text
-
 from django.template import Context, Template
 
 from jsonfield import JSONField
 from post_office import cache
-from .compat import text_type
+from .compat import text_type, smart_text
 from .connections import connections
 from .settings import context_field_class, get_log_level
 from .validators import validate_email_with_name, validate_template_syntax
@@ -171,6 +166,14 @@ class Log(models.Model):
         return text_type(self.date)
 
 
+class EmailTemplateMeta(models.base.ModelBase):
+    def __new__(cls, name, bases, attrs):
+        # Override choices attr
+        cls = models.base.ModelBase.__new__(cls, name, bases, attrs)
+        setattr(cls._meta.get_field('language'), 'choices_', settings.LANGUAGES)
+        return cls
+
+
 @python_2_unicode_compatible
 class EmailTemplate(models.Model):
     """
@@ -187,7 +190,7 @@ class EmailTemplate(models.Model):
         verbose_name=_("Content"), validators=[validate_template_syntax])
     html_content = models.TextField(blank=True,
         verbose_name=_("HTML content"), validators=[validate_template_syntax])
-    language = models.CharField(max_length=12, choices=settings.LANGUAGES,
+    language = models.CharField(max_length=12, choices=[],
         help_text=_("Render template in alternative language"),
         default='', blank=True)
     default_template = models.ForeignKey('self', related_name='translated_templates',
