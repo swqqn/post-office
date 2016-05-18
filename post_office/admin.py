@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
-from django import forms
 from django.db import models
 from django.contrib import admin
 from django.conf import settings
@@ -75,20 +74,8 @@ class SubjectField(TextInput):
         super(SubjectField, self).__init__(*args, **kwargs)
         self.attrs.update({'style': 'width: 610px;'})
 
-class EmailTemplateAdminForm(forms.ModelForm):
- 
-    language = forms.ChoiceField(choices=settings.LANGUAGES, required=False, 
-                                 help_text=_("Render template in alternative language"),
-                                 label=_("Language"))
- 
-    class Meta:
-        model = EmailTemplate
-        fields = ('name', 'description', 'subject',
-                  'content', 'html_content', 'language', 'default_template')
-
 
 class EmailTemplateInline(admin.StackedInline):
-    form = EmailTemplateAdminForm
     model = EmailTemplate
     extra = 0
     fields = ('language', 'subject', 'content', 'html_content',)
@@ -101,7 +88,6 @@ class EmailTemplateInline(admin.StackedInline):
 
 
 class EmailTemplateAdmin(admin.ModelAdmin):
-    form = EmailTemplateAdminForm
     list_display = ('name', 'description_shortened', 'subject', 'languages_compact', 'created')
     search_fields = ('name', 'description', 'subject')
     fieldsets = [
