@@ -1,5 +1,6 @@
+import sys
+
 from multiprocessing import Pool
-from multiprocessing.dummy import Pool as ThreadPool
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -9,9 +10,9 @@ from django.template import Context, Template
 from django.utils.timezone import now
 
 from .connections import connections
-from .models import Email, EmailTemplate, Log, PRIORITY, STATUS
+from .models import Email, EmailTemplate, PRIORITY, STATUS
 from .settings import (get_available_backends, get_batch_size,
-                       get_log_level, get_sending_order, get_threads_per_process)
+                       get_log_level, get_sending_order)
 from .utils import (get_email_template, parse_emails, parse_priority,
                     split_emails, create_attachments)
 from .logutils import setup_loghandlers
@@ -227,71 +228,26 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     if log_level is None:
         log_level = get_log_level()
 
-    sent_emails = []
-    failed_emails = []  # This is a list of two tuples (email, exception)
+    sent_count, failed_count = 0, 0
     email_count = len(emails)
-
     logger.info('Process started, sending %s emails' % email_count)
 
-    def send(email):
-        try:
-            email.dispatch(log_level=log_level, commit=False,
-                           disconnect_after_delivery=False)
-            sent_emails.append(email)
-            logger.debug('Successfully sent email #%d' % email.id)
-        except Exception as e:
-            logger.debug('Failed to send email #%d' % email.id)
-            failed_emails.append((email, e))
-
-    # Prepare emails before we send these to threads for sending
-    # So we don't need to access the DB from within threads
-    for email in emails:
-        email.prepare_email_message()
-
-    number_of_threads = min(get_threads_per_process(), email_count)
-    pool = ThreadPool(number_of_threads)
-
-    pool.map(send, emails)
-    pool.close()
-    pool.join()
+    try:
+        for email in emails:
+            status = email.dispatch(log_level=log_level,
+                                    disconnect_after_delivery=False)
+            if status == STATUS.sent:
+                sent_count += 1
+                logger.debug('Successfully sent email #%d' % email.id)
+            else:
+                failed_count += 1
+                logger.debug('Failed to send email #%d' % email.id)
+    except Exception as e:
+        logger.error(e, exc_info=sys.exc_info(), extra={'status_code': 500})
 
     connections.close()
 
-    # Update statuses of sent and failed emails
-    email_ids = [email.id for email in sent_emails]
-    Email.objects.filter(id__in=email_ids).update(status=STATUS.sent)
+    logger.info('Process finished, %s attempted, %s sent, %s failed' %
+                (email_count, sent_count, failed_count))
 
-    email_ids = [email.id for (email, e) in failed_emails]
-    Email.objects.filter(id__in=email_ids).update(status=STATUS.failed)
-
-    # If log level is 0, log nothing, 1 logs only sending failures
-    # and 2 means log both successes and failures
-    if log_level >= 1:
-
-        logs = []
-        for (email, exception) in failed_emails:
-            logs.append(
-                Log(email=email, status=STATUS.failed,
-                    message=str(exception),
-                    exception_type=type(exception).__name__)
-            )
-
-        if logs:
-            Log.objects.bulk_create(logs)
-
-    if log_level == 2:
-
-        logs = []
-        for email in sent_emails:
-            logs.append(Log(email=email, status=STATUS.sent))
-
-        if logs:
-            Log.objects.bulk_create(logs)
-
-    logger.info(
-        'Process finished, %s attempted, %s sent, %s failed' % (
-            email_count, len(sent_emails), len(failed_emails)
-        )
-    )
-
-    return len(sent_emails), len(failed_emails)
+    return (sent_count, failed_count)

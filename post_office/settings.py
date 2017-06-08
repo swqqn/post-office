@@ -71,11 +71,7 @@ def get_config():
 
 
 def get_batch_size():
-    return get_config().get('BATCH_SIZE', 100)
-
-
-def get_threads_per_process():
-    return get_config().get('THREADS_PER_PROCESS', 5)
+    return get_config().get('BATCH_SIZE', 500)
 
 
 def get_default_priority():

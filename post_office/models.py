@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from collections import namedtuple
 from uuid import uuid4
 
+from django.conf import settings
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.db import models
 from django.template import Context, Template
@@ -23,6 +24,7 @@ from .validators import validate_email_with_name, validate_template_syntax
 
 PRIORITY = namedtuple('PRIORITY', 'low medium high now')._make(range(4))
 STATUS = namedtuple('STATUS', 'sent failed queued')._make(range(3))
+
 
 
 @python_2_unicode_compatible
@@ -58,37 +60,24 @@ class Email(models.Model):
                                                 blank=True, null=True)
     created = models.DateTimeField(auto_now_add=True, db_index=True)
     last_updated = models.DateTimeField(db_index=True, auto_now=True)
-    scheduled_time = models.DateTimeField(_('The scheduled sending time'),
+    scheduled_time = models.DateTimeField(_('The scheduled sending time'), 
                                           blank=True, null=True, db_index=True)
     headers = JSONField(_('Headers'),blank=True, null=True)
-    template = models.ForeignKey('post_office.EmailTemplate', blank=True,
+    template = models.ForeignKey('post_office.EmailTemplate', blank=True, 
                                  null=True, verbose_name=_('Email template'))
-    context = context_field_class(_('Context'), blank=True, null=True)
+    context = context_field_class(_('Context'),blank=True, null=True)
     backend_alias = models.CharField(_('Backend alias'), blank=True, default='',
                                      max_length=64)
 
     class Meta:
         app_label = 'post_office'
-        verbose_name = pgettext_lazy("Email address", "Email")
-        verbose_name_plural = pgettext_lazy("Email addresses", "Emails")
-
-    def __init__(self, *args, **kwargs):
-        super(Email, self).__init__(*args, **kwargs)
-        self._cached_email_message = None
+        verbose_name = pgettext_lazy("Email address","Email")
+        verbose_name_plural = pgettext_lazy("Email addresses","Emails")
 
     def __str__(self):
         return u'%s' % self.to
 
-    def email_message(self):
-        """
-        Returns Django EmailMessage object for sending.
-        """
-        if self._cached_email_message:
-            return self._cached_email_message
-
-        return self.prepare_email_message()
-
-    def prepare_email_message(self):
+    def email_message(self, connection=None):
         """
         Returns a django ``EmailMessage`` or ``EmailMultiAlternatives`` object,
         depending on whether html_message is empty.
@@ -106,34 +95,36 @@ class Email(models.Model):
             message = self.message
             html_message = self.html_message
 
-        connection = connections[self.backend_alias or 'default']
-
         if html_message:
             msg = EmailMultiAlternatives(
                 subject=subject, body=message, from_email=self.from_email,
                 to=self.to, bcc=self.bcc, cc=self.cc,
-                headers=self.headers, connection=connection)
+                connection=connection, headers=self.headers)
             msg.attach_alternative(html_message, "text/html")
         else:
             msg = EmailMessage(
                 subject=subject, body=message, from_email=self.from_email,
                 to=self.to, bcc=self.bcc, cc=self.cc,
-                headers=self.headers, connection=connection)
+                connection=connection, headers=self.headers)
 
         for attachment in self.attachments.all():
             msg.attach(attachment.name, attachment.file.read())
             attachment.file.close()
 
-        self._cached_email_message = msg
         return msg
 
-    def dispatch(self, log_level=None,
-                 disconnect_after_delivery=True, commit=True):
+    def dispatch(self, log_level=None, disconnect_after_delivery=True):
         """
-        Sends email and log the result.
+        Actually send out the email and log the result
         """
+
+        if log_level is None:
+            log_level = get_log_level()
+
+        connection = None
         try:
-            self.email_message().send()
+            connection = connections[self.backend_alias or 'default']
+            self.email_message(connection=connection).send()
             status = STATUS.sent
             message = ''
             exception_type = ''
@@ -142,27 +133,21 @@ class Email(models.Model):
             message = str(e)
             exception_type = type(e).__name__
 
-            # If run in a bulk sending mode, reraise and let the outer
-            # layer handle the exception
-            if not commit:
-                raise
+        if connection and disconnect_after_delivery:
+            connection.close()
 
-        if commit:
-            self.status = status
-            self.save(update_fields=['status'])
+        self.status = status
+        self.save()
 
-            if log_level is None:
-                log_level = get_log_level()
-
-            # If log level is 0, log nothing, 1 logs only sending failures
-            # and 2 means log both successes and failures
-            if log_level == 1:
-                if status == STATUS.failed:
-                    self.logs.create(status=status, message=message,
-                                     exception_type=exception_type)
-            elif log_level == 2:
+        # If log level is 0, log nothing, 1 logs only sending failures
+        # and 2 means log both successes and failures
+        if log_level == 1:
+            if status == STATUS.failed:
                 self.logs.create(status=status, message=message,
                                  exception_type=exception_type)
+        elif log_level == 2:
+            self.logs.create(status=status, message=message,
+                             exception_type=exception_type)
 
         return status
 
@@ -220,7 +205,7 @@ class EmailTemplate(models.Model):
 
     class Meta:
         app_label = 'post_office'
-        unique_together = ('language', 'default_template')
+        unique_together = ('name', 'language', 'default_template')
         verbose_name = _("Email Template")
         verbose_name_plural = _("Email Templates")
 
