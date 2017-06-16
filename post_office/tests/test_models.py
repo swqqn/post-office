@@ -3,9 +3,10 @@ from datetime import datetime, timedelta
 from django.conf import settings as django_settings
 from django.core import mail
 from django.core.files.base import ContentFile
-from django.core.mail import EmailMessage, EmailMultiAlternatives
+from django.core.mail import EmailMessage, EmailMultiAlternatives, get_connection
 from django.forms.models import modelform_factory
 from django.test import TestCase
+from django.test.utils import override_settings
 
 from ..models import Email, Log, PRIORITY, STATUS, EmailTemplate, Attachment
 from ..mail import send
@@ -271,6 +272,23 @@ class ModelTest(TestCase):
 
         self.assertEqual(message.attachments,
                          [('test.txt', b'test file content', None)])
+
+    def test_attachments_email_message_with_mimetype(self):
+        email = Email.objects.create(to=['to@example.com'],
+                                     from_email='from@example.com',
+                                     subject='Subject')
+
+        attachment = Attachment()
+        attachment.file.save(
+            'test.txt', content=ContentFile('test file content'), save=True
+        )
+        attachment.mimetype = 'text/plain'
+        attachment.save()
+        email.attachments.add(attachment)
+        message = email.email_message()
+
+        self.assertEqual(message.attachments,
+                         [('test.txt', b'test file content', 'text/plain')])
 
     def test_translated_template_uses_default_templates_name(self):
         template = EmailTemplate.objects.create(name='name')
