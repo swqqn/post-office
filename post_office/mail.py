@@ -246,12 +246,7 @@ def _send_bulk(emails, uses_multiprocessing=True, log_level=None):
     # Prepare emails before we send these to threads for sending
     # So we don't need to access the DB from within threads
     for email in emails:
-        # Sometimes this can fail, for example when trying to render
-        # email from a faulty Django template
-        try:
-            email.prepare_email_message()
-        except Exception as e:
-            failed_emails.append((email, e))
+        email.prepare_email_message()
 
     number_of_threads = min(get_threads_per_process(), email_count)
     pool = ThreadPool(number_of_threads)
