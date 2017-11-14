@@ -1,4 +1,4 @@
-VERSION = (3, 0, 3)
+VERSION = (3, 0, 2)
 
 from .backends import EmailBackend
 
