@@ -51,8 +51,6 @@ requeue.short_description = 'Requeue selected emails'
 class EmailAdmin(admin.ModelAdmin):
     list_display = ('id', 'to_display', 'subject', 'template',
                     'status', 'last_updated')
-    search_fields = ['to', 'subject']
-    date_hierarchy = 'last_updated'
     inlines = [LogInline]
     list_filter = ['status']
     formfield_overrides = {
@@ -78,7 +76,6 @@ class SubjectField(TextInput):
     def __init__(self, *args, **kwargs):
         super(SubjectField, self).__init__(*args, **kwargs)
         self.attrs.update({'style': 'width: 610px;'})
-
 
 class EmailTemplateAdminForm(forms.ModelForm):
 
@@ -131,16 +128,9 @@ class EmailTemplateAdmin(admin.ModelAdmin):
     description_shortened.admin_order_field = 'description'
 
     def languages_compact(self, instance):
-        languages = [tt.language for tt in instance.translated_templates.order_by('language')]
+        languages = [tt.language for tt in instance.translated_templates.all()]
         return ', '.join(languages)
     languages_compact.short_description = _("Languages")
-
-    def save_model(self, request, obj, form, change):
-        obj.save()
-
-        # if the name got changed, also change the translated templates to match again
-        if 'name' in form.changed_data:
-            obj.translated_templates.update(name=obj.name)
 
 
 class AttachmentAdmin(admin.ModelAdmin):
