@@ -3,11 +3,8 @@ Changelog
 
 Version 3.3.0
 -------------
-* Support for Django 3.0. Thanks @Mogost!
-* Drop support for Django < 1.11 and Python < 3.5. Thanks @Mogost!
-* Replace unsupported dependency ``jsonfield`` with supported fork ``jsonfield2``. Thanks @Mogost!
-* Added `OVERRIDE_RECIPIENTS` for testing purposes. Thanks @Houtmann!
-* Improved admin interface. Thanks @ilikerobots and @cwuebbels!
+* Drop support for Django < 1.11 and Python < 3.5.
+* Replace unsupported dependency ``jsonfield`` with supported fork ``jsonfield2``.
 
 Version 3.2.1
 -------------
