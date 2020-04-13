@@ -15,7 +15,7 @@ from .settings import (get_available_backends, get_batch_size,
 from .utils import (get_email_template, parse_emails, parse_priority,
                     split_emails, create_attachments)
 from .logutils import setup_loghandlers
-from .signals import email_queued
+
 
 logger = setup_loghandlers("INFO")
 
@@ -150,7 +150,6 @@ def send(recipients=None, sender=None, template=None, context=None, subject='',
 
     if priority == PRIORITY.now:
         email.dispatch(log_level=log_level)
-    email_queued.send(sender=Email, emails=[email])
 
     return email
 
@@ -164,9 +163,7 @@ def send_many(kwargs_list):
     emails = []
     for kwargs in kwargs_list:
         emails.append(send(commit=False, **kwargs))
-    if len(emails) > 0:
-        Email.objects.bulk_create(emails)
-        email_queued.send(sender=Email, emails=emails)
+    Email.objects.bulk_create(emails)
 
 
 def get_queued():

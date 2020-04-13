@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from unittest.mock import patch
 
 from django.core import mail
 from django.core.files.base import ContentFile
@@ -397,13 +396,3 @@ class MailTest(TestCase):
         _send_bulk([email], uses_multiprocessing=False)
         email = Email.objects.get(id=email.id)
         self.assertEqual(email.status, STATUS.failed)
-
-    @patch('post_office.signals.email_queued.send')
-    def test_backend_signal(self, mock):
-        """
-        Check that the post_office signal handler is fired
-        """
-        email = send(recipients=['a@example.com'],
-                     sender='from@example.com', message='message',
-                     subject='subject')
-        mock.assert_called_once_with(sender=Email, emails=[email])
