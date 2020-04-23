@@ -1,5 +1,6 @@
 from django.apps import AppConfig
 from django.utils.translation import ugettext_lazy as _
+from django.utils.module_loading import import_string
 
 
 class PostOfficeConfig(AppConfig):
@@ -7,8 +8,10 @@ class PostOfficeConfig(AppConfig):
     verbose_name = _("Post Office")
 
     def ready(self):
-        from post_office import tasks
         from post_office.signals import email_queued
 
-        if hasattr(tasks, 'queued_mail_handler'):
-            email_queued.connect(tasks.queued_mail_handler)
+        try:
+            queued_mail_handler = import_string('post_office.tasks.queued_mail_handler')
+            email_queued.connect(queued_mail_handler)
+        except ImportError:
+            pass  # Celery is not installed
