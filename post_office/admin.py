@@ -86,49 +86,39 @@ class SubjectField(TextInput):
 
 class EmailTemplateAdminFormSet(BaseInlineFormSet):
     def clean(self):
-        """Checks that no two Email templates have the same default_template, name and language."""
-        if any(self.errors):
-            return
-
-        data = []
-
+        """
+        Check that no two Email templates have the same default_template and language.
+        """
+        super().clean()
+        data = set()
         for form in self.forms:
-            default_template = form.cleaned_data["default_template"]
-            name = default_template.name
-            language = form.cleaned_data["language"]
-
-            if (default_template, name, language) in data:
-                raise forms.ValidationError(
-                    "Email templates must have distinct default_template, name and language."
-                )
-            data.append((default_template, name, language))
+            default_template = form.cleaned_data['default_template']
+            language = form.cleaned_data['language']
+            if (default_template, language) in data:
+                msg = _("Duplicate template for language '{language}'.")
+                language = dict(form.fields['language'].choices)[language]
+                raise ValidationError(msg.format(language=language))
+            data.add((default_template, language))
 
 
 class EmailTemplateAdminForm(forms.ModelForm):
-    language = forms.ChoiceField(choices=settings.LANGUAGES, required=False,
-                                 help_text=_("Render template in alternative language"),
-                                 label=_("Language"))
+    language = forms.ChoiceField(
+        choices=settings.LANGUAGES,
+        required=False,
+        label=_("Language"),
+        help_text=_("Render template in alternative language"),
+    )
 
     class Meta:
         model = EmailTemplate
-        fields = ('name', 'description', 'subject',
-                  'content', 'html_content', 'language', 'default_template')
+        fields = ['name', 'description', 'subject', 'content', 'html_content', 'language',
+                  'default_template']
 
     def __init__(self, *args, **kwargs):
         instance = kwargs.get('instance')
         super().__init__(*args, **kwargs)
         if instance and instance.language:
             self.fields['language'].disabled = True
-
-    def clean(self):
-        cleaned_data = super().clean()
-        if self.instance.default_template:
-            siblings = EmailTemplate.objects.filter(default_template=self.instance.default_template)
-            language = cleaned_data['language']
-            if siblings.exclude(id=self.instance.id).filter(language=language).exists():
-                msg = _("Duplicate template for language '{language}'.")
-                raise ValidationError(msg.format(**cleaned_data))
-        return cleaned_data
 
 
 class EmailTemplateInline(admin.StackedInline):
