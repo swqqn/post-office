@@ -80,7 +80,7 @@ def get_batch_size():
 
 
 def get_celery_enabled():
-    return get_config().get('CELERY_ENABLED', False)
+    return get_config().get('CELERY_ENABLED', True)
 
 
 def get_threads_per_process():

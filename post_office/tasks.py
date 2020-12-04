@@ -1,17 +1,16 @@
-"""
-Only define the tasks and handler if we can import celery.
-This allows the module to be imported in environments without Celery, for
-example by other task queue systems such as Huey, which use the same pattern
-of auto-discovering tasks in "tasks" submodules.
-"""
 import datetime
 
 from django.utils.timezone import now
 
-from post_office.mail import send_queued_mail_until_done
+from post_office.mail import send_queued
 from post_office.utils import cleanup_expired_mails
 
 from .settings import get_celery_enabled
+
+# Only define the tasks and handler if we can import celery.
+# This allows the module to be imported in environments without Celery, for
+# example by other task queue systems such as Huey, which use the same pattern
+# of auto-discovering tasks in "tasks" submodules
 
 try:
     if get_celery_enabled():
@@ -19,22 +18,15 @@ try:
     else:
         raise NotImplementedError()
 except (ImportError, NotImplementedError):
-    def queued_mail_handler(sender, **kwargs):
-        """
-        To be called by :func:`post_office.signals.email_queued.send()` for triggering asynchronous
-        mail delivery – if provided by an external queue, such as Celery.
-        """
+    pass
 else:
     @shared_task(ignore_result=True)
     def send_queued_mail(*args, **kwargs):
-        """
-        To be called by the Celery task manager.
-        """
-        send_queued_mail_until_done()
+        send_queued()
 
     def queued_mail_handler(sender, **kwargs):
         """
-        Trigger an asynchronous mail delivery.
+        To be called by post_office.signals.email_queued.send()
         """
         send_queued_mail.delay()
 

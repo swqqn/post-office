@@ -8,8 +8,7 @@ class PostOfficeConfig(AppConfig):
 
     def ready(self):
         from post_office import tasks
-        from post_office.settings import get_celery_enabled
         from post_office.signals import email_queued
 
-        if get_celery_enabled():
+        if hasattr(tasks, 'queued_mail_handler'):
             email_queued.connect(tasks.queued_mail_handler)
